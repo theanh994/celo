@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CeloGigPay - Thanh toán freelancer</title>
+  <script src="https://cdn.jsdelivr.net/npm/@celo/contractkit@5.0.0/dist/mini.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; }
+    .container { max-width: 400px; margin: 0 auto; background: rgba(255,255,255,0.1); padding: 30px; border-radius: 20px; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+    h1 { text-align: center; font-size: 28px; margin-bottom: 10px; }
+    p { text-align: center; opacity: 0.9; }
+    input, button { width: 100%; padding: 14px; margin: 10px 0; border: none; border-radius: 12px; font-size: 16px; }
+    input { background: rgba(255,255,255,0.2); color: white; }
+    input::placeholder { color: rgba(255,255,255,0.7); }
+    button { background: #00d1b2; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; }
+    button:hover { background: #00b89c; }
+    .status { text-align: center; margin: 15px 0; font-weight: bold; }
+    footer { text-align: center; margin-top: 30px; font-size: 12px; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Freelancer Payment</h1>
+    <p>Thanh toán bằng cUSD – Nhận tiền ngay!</p>
+
+    <button onclick="connect()">Kết nối Valora / MetaMask</button>
+    <div class="status" id="status"></div>
+
+    <input id="client" placeholder="Địa chỉ khách hàng (0x...)" />
+    <input id="amount" type="number" placeholder="Số cUSD (vd: 100)" />
+    <button onclick="createInvoice()">Tạo Hóa Đơn</button>
+
+    <input id="id" type="number" placeholder="ID hóa đơn (vd: 0)" />
+    <button onclick="payInvoice()">Thanh Toán</button>
+    <button onclick="claimInvoice()">Nhận Tiền</button>
+
+    <footer>
+      Contract: <span id="contractAddr">0xYOUR_CONTRACT</span><br>
+      Celo Sepolia Testnet
+    </footer>
+  </div>
+
+  <script>
+    const CONTRACT = "0xYOUR_CONTRACT_ADDRESS"; // ← THAY SAU KHI DEPLOY
+    const CUSD = "0x765DE816845861e75A25fCA122bb6898B8B1282a";
+    document.getElementById("contractAddr").innerText = CONTRACT.slice(0,6) + "..." + CONTRACT.slice(-4);
+
+    let kit, contract, account;
+
+    async function connect() {
+      if (!window.celo) return alert("Cài Valora hoặc MetaMask!");
+      try {
+        await celo.enable();
+        kit = ContractKit.newKitFromWeb3(new Web3(celo));
+        [account] = await kit.web3.eth.getAccounts();
+        contract = new kit.web3.eth.Contract([
+          {"inputs":[{"internalType":"address","name":"_client","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"}],"name":"createInvoice","outputs":[],"stateMutability":"nonpayable","type":"function"},
+          {"inputs":[{"internalType":"uint256","name":"_id","type":"uint256"}],"name":"payInvoice","outputs":[],"stateMutability":"nonpayable","type":"function"},
+          {"inputs":[{"internalType":"uint256","name":"_id","type":"uint256"}],"name":"claimInvoice","outputs":[],"stateMutability":"nonpayable","type":"function"}
+        ], CONTRACT);
+        document.getElementById("status").innerHTML = `Đã kết nối: ${account.slice(0,6)}...${account.slice(-4)}`;
+      } catch (e) { alert("Lỗi: " + e.message); }
+    }
+
+    async function createInvoice() {
+      if (!account) return alert("Chưa kết nối!");
+      const client = document.getElementById("client").value;
+      const amount = kit.web3.utils.toWei(document.getElementById("amount").value || "0", 'ether');
+      await contract.methods.createInvoice(client, amount).send({ from: account });
+      alert("Tạo hóa đơn thành công!");
+    }
+
+    async function payInvoice() {
+      if (!account) return alert("Chưa kết nối!");
+      const id = document.getElementById("id").value;
+      const cusd = new kit.web3.eth.Contract([{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"approve","outputs":[],"stateMutability":"nonpayable","type":"function"}], CUSD);
+      await cusd.methods.approve(CONTRACT, kit.web3.utils.toWei("1000", 'ether')).send({ from: account });
+      await contract.methods.payInvoice(id).send({ from: account });
+      alert("Thanh toán thành công!");
+    }
+
+    async function claimInvoice() {
+      if (!account) return alert("Chưa kết nối!");
+      const id = document.getElementById("id").value;
+      await contract.methods.claimInvoice(id).send({ from: account });
+      alert("Đã nhận tiền!");
+    }
+  </script>
+</body>
+</html>
